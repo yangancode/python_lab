@@ -1,0 +1,8 @@
+# 1.指定执行的机器，webservers是我定义的一个机器组
+- hosts: "{{ host | default('webservers') }}"
+  # 2.滚动更新执行的机器数
+  serial: "{{ serial | default(10) }}"
+  vars:
+      version: "{{ git_version | default('master') }}"
+  roles:
+    - python

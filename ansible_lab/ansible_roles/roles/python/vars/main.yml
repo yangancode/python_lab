@@ -1,0 +1,3 @@
+remote_srv: /home/yangan/services
+local_srv: /home/ansible/flask_lab
+virtualenv_path: /home/yangan/virtual_env

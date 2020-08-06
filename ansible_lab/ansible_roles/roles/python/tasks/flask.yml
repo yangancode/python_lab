@@ -1,0 +1,72 @@
+- name: check supervisor install
+  stat:
+    path: /etc/supervisor
+  register: supervisor_stat
+  tags:
+    - deploy
+
+- name: check remote service folder
+  stat:
+    path: "{{ remote_srv }}"
+  register: remote_service_stat
+  tags:
+    - deploy
+
+# 检查virtualenv是否存在，service_name是外部传入的变量
+- name: check virtualenv install
+  stat:
+    path: "{{ virtualenv_path }}/{{service_name}}"
+  register: virtualenv_stat
+  tags:
+    - deploy
+
+- apt: name=supervisor update_cache=yes
+  when: supervisor_stat.stat.exists == False
+  sudo: yes
+  tags:
+    - deploy
+
+# 远程目录存在则跳过，不存在创建
+- name: create remote service folder
+  file: path="{{ remote_srv }}" state=directory mode=755 owner=yangan group=yangan
+  when: remote_service_stat.stat.exists == False
+  tags:
+    - deploy
+
+# 最好判断的时候精确到bin目录
+- name: create virtualenv folder
+  file: path="{{ virtualenv_path }}/{{service_name}}/bin" state=directory mode=755 owner=yangan group=yangan
+  when: virtualenv_stat.stat.exists == False
+  tags:
+    - deploy
+
+# 远程机器需要先安装virtualenv
+- name: install virtualenv
+  shell: virtualenv -p /usr/bin/python3 {{ service_name }} && chown -R yangan:yangan {{ service_name }}
+  args:
+    chdir: "{{ virtualenv_path }}"
+  when: virtualenv_stat.stat.exists == False
+  tags:
+    - deploy
+
+# 拷贝代码
+# /home/ansible/flask_lab -> /home/yangan/services/flask
+- name: copy code
+  copy: src="{{ local_srv }}/" dest={{ remote_srv }}/{{ service_name }}/ owner=yangan group=yangan mode=0755 backup=no
+  tags:
+    - deploy
+
+# 拷贝配置文件
+- name: copy supervisor config file
+  template: src=flask.conf dest=/etc/supervisor/conf.d/{{ service_name }}.conf owner=yangan group=yangan mode=0644
+  tags:
+    - deploy
+
+- name: install pip requirements
+  pip:
+    requirements: "{{ remote_srv }}/{{ service_name }}/requirements.txt"
+    virtualenv: "{{ virtualenv_path }}/{{ service_name }}"
+  tags:
+    - deploy
+  notify:
+    - update supervisor
